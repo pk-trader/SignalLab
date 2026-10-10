@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='.', template_folder='.')
+# Absolute path fix for Render server
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+app = Flask(__name__, static_folder=BASE_DIR, template_folder=BASE_DIR)
 
 # Fetch Market Data from Binance API
 def get_binance_klines(symbol="BTCUSDT", interval="1m", limit=100):
@@ -138,11 +140,15 @@ def analyze_indicators(df):
 
 @app.route('/')
 def home():
-    if os.path.exists('index.html'):
-        return send_from_directory('.', 'index.html')
-    elif os.path.exists('index (1).html'):
-        return send_from_directory('.', 'index (1).html')
-    return "<h1>Index HTML file not found!</h1>", 404
+    html_path = os.path.join(BASE_DIR, 'index.html')
+    if os.path.exists(html_path):
+        return send_from_directory(BASE_DIR, 'index.html')
+    
+    alt_path = os.path.join(BASE_DIR, 'index (1).html')
+    if os.path.exists(alt_path):
+        return send_from_directory(BASE_DIR, 'index (1).html')
+        
+    return f"<h1>Index HTML not found in: {BASE_DIR}</h1>", 404
 
 @app.route('/api/analyze', methods=['GET'])
 def api_analyze():
