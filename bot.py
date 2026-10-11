@@ -3,11 +3,20 @@ from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import numpy as np
 import requests
+from datetime import datetime
 
 app = Flask(__name__, template_folder='.', static_folder='.')
 
+def clean_symbol(pair_str):
+    if not pair_str:
+        return "BTCUSDT"
+    # Remove all spaces, slashes, dashes to get clean string like SOLUSDT
+    cleaned = str(pair_str).replace(" ", "").replace("/", "").replace("-", "").upper()
+    return cleaned
+
 def fetch_binance_data(symbol="BTCUSDT", interval="5m", limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    clean_sym = clean_symbol(symbol)
+    url = f"https://api.binance.com/api/v3/klines?symbol={clean_sym}&interval={interval}&limit={limit}"
     try:
         response = requests.get(url, timeout=5)
         data = response.json()
@@ -43,7 +52,7 @@ def calculate_indicators(df):
 
     # 2. EMA 9 & 21
     ema9 = close.ewm(span=9, adjust=False).mean().iloc[-1]
-    ema21 = close.ewm(span=12, adjust=False).mean().iloc[-1]
+    ema21 = close.ewm(span=21, adjust=False).mean().iloc[-1]
 
     # 3. MACD
     exp1 = close.ewm(span=12, adjust=False).mean()
@@ -57,7 +66,6 @@ def calculate_indicators(df):
     lowest_low = low.rolling(window=14).min()
     highest_high = high.rolling(window=14).max()
     k = 100 * ((close - lowest_low) / (highest_high - lowest_low))
-    d = k.rolling(window=3).mean()
     current_k = k.iloc[-1]
 
     # 5. Bollinger Bands
@@ -70,89 +78,89 @@ def calculate_indicators(df):
     # 6. Price Action
     prev_close = close.iloc[-2]
 
-    # 7. ADX Proxy / Trend
+    # 7. ADX / Trend
     price_change = curr_price - close.iloc[-5]
 
-    # 8. Volume Trend
+    # 8. Volume
     avg_vol = volume.rolling(window=10).mean().iloc[-1]
     curr_vol = volume.iloc[-1]
 
-    # Evaluating 8 Indicators
     signals = {}
     score = 0
 
-    # RSI Check
+    # RSI
     if current_rsi < 45:
-        signals['RSI (14)'] = {'direction': 'BUY', 'desc': 'Oversold zone'}
+        signals['rsi'] = 'BUY'
         score += 1
     elif current_rsi > 55:
-        signals['RSI (14)'] = {'direction': 'SELL', 'desc': 'Overbought zone'}
+        signals['rsi'] = 'SELL'
     else:
-        signals['RSI (14)'] = {'direction': 'NEUTRAL', 'desc': 'Mid range'}
+        signals['rsi'] = 'NEUTRAL'
 
-    # EMA Check
+    # EMA
     if ema9 > ema21:
-        signals['EMA 9 vs EMA 21'] = {'direction': 'BUY', 'desc': 'Bullish crossover'}
+        signals['ema'] = 'BUY'
         score += 1
     else:
-        signals['EMA 9 vs EMA 21'] = {'direction': 'SELL', 'desc': 'Bearish crossover'}
+        signals['ema'] = 'SELL'
 
-    # MACD Check
+    # MACD
     if current_macd > current_signal:
-        signals['MACD (12,26,9)'] = {'direction': 'BUY', 'desc': 'Bullish momentum'}
+        signals['macd'] = 'BUY'
         score += 1
     else:
-        signals['MACD (12,26,9)'] = {'direction': 'SELL', 'desc': 'Bearish momentum'}
+        signals['macd'] = 'SELL'
 
-    # Stochastic Check
-    if current_k < 30:
-        signals['Stochastic (14,3,3)'] = {'direction': 'BUY', 'desc': 'Oversold bounce'}
+    # Stochastic
+    if current_k < 35:
+        signals['stoch'] = 'BUY'
         score += 1
-    elif current_k > 70:
-        signals['Stochastic (14,3,3)'] = {'direction': 'SELL', 'desc': 'Overbought zone'}
+    elif current_k > 65:
+        signals['stoch'] = 'SELL'
     else:
-        signals['Stochastic (14,3,3)'] = {'direction': 'NEUTRAL', 'desc': 'Neutral'}
+        signals['stoch'] = 'NEUTRAL'
 
-    # Bollinger Bands Check
+    # Bollinger
     if curr_price <= lower_band:
-        signals['Bollinger (20,2)'] = {'direction': 'BUY', 'desc': 'Touch lower band'}
+        signals['bb'] = 'BUY'
         score += 1
     elif curr_price >= upper_band:
-        signals['Bollinger (20,2)'] = {'direction': 'SELL', 'desc': 'Touch upper band'}
+        signals['bb'] = 'SELL'
     else:
-        signals['Bollinger (20,2)'] = {'direction': 'NEUTRAL', 'desc': 'Inside bands'}
+        signals['bb'] = 'NEUTRAL'
 
-    # Price Action Check
+    # Price Action
     if curr_price > prev_close:
-        signals['Price action'] = {'direction': 'BUY', 'desc': 'Higher close'}
+        signals['pa'] = 'BUY'
         score += 1
     else:
-        signals['Price action'] = {'direction': 'SELL', 'desc': 'Lower close'}
+        signals['pa'] = 'SELL'
 
-    # ADX Trend Check
+    # ADX Trend
     if price_change > 0:
-        signals['ADX (14) · Trend strength'] = {'direction': 'BUY', 'desc': 'Strong upward'}
+        signals['adx'] = 'BUY'
         score += 1
     else:
-        signals['ADX (14) · Trend strength'] = {'direction': 'SELL', 'desc': 'Strong downward'}
+        signals['adx'] = 'SELL'
 
-    # Volume Trend Check
+    # Volume
     if curr_vol > avg_vol:
-        signals['Volume trend'] = {'direction': 'BUY', 'desc': 'High volume spike'}
+        signals['vol'] = 'BUY'
         score += 1
     else:
-        signals['Volume trend'] = {'direction': 'NEUTRAL', 'desc': 'Normal volume'}
+        signals['vol'] = 'NEUTRAL'
 
-    # Final Status determination
     if score >= 7:
-        status = "STRONG CALL: BUY"
+        status = "BUY"
         color = "#10b981"
     elif score <= 2:
-        status = "STRONG CALL: SELL"
+        status = "SELL"
         color = "#ef4444"
     else:
-        status = "WAIT / MARKET NEUTRAL"
+        status = "WAIT"
         color = "#f59e0b"
+
+    now = datetime.utcnow().strftime("%I:%M %p UTC")
 
     return {
         "score": score,
@@ -160,6 +168,7 @@ def calculate_indicators(df):
         "status": status,
         "color": color,
         "latest_price": f"${curr_price:,.2f}",
+        "trade_time": now,
         "signals": signals
     }
 
@@ -175,7 +184,8 @@ def index():
 @app.route('/api/analyze')
 def analyze():
     pair = request.args.get('pair', 'BTCUSDT')
-    df = fetch_binance_data(symbol=pair)
+    clean_pair = clean_symbol(pair)
+    df = fetch_binance_data(symbol=clean_pair)
     if df is not None and not df.empty:
         result = calculate_indicators(df)
         return jsonify({"success": True, "data": result})
