@@ -1,165 +1,186 @@
 import os
-import requests
+from flask import Flask, render_template, request, jsonify
 import pandas as pd
-import ta
-from flask import Flask, jsonify, request, send_from_directory
-from dotenv import load_dotenv
+import numpy as np
+import requests
 
-load_dotenv()
+app = Flask(__name__, template_folder='.', static_folder='.')
 
-# Absolute path fix for Render server
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app = Flask(__name__, static_folder=BASE_DIR, template_folder=BASE_DIR)
+def fetch_binance_data(symbol="BTCUSDT", interval="5m", limit=100):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    try:
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        if isinstance(data, list) and len(data) > 0:
+            df = pd.DataFrame(data, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                'close_time', 'quote_asset_volume', 'number_of_trades',
+                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+            ])
+            df['close'] = df['close'].astype(float)
+            df['high'] = df['high'].astype(float)
+            df['low'] = df['low'].astype(float)
+            df['open'] = df['open'].astype(float)
+            df['volume'] = df['volume'].astype(float)
+            return df
+    except Exception as e:
+        print("Error fetching data:", e)
+    return None
 
-# Fetch Market Data from Binance API
-def get_binance_klines(symbol="BTCUSDT", interval="1m", limit=100):
-    clean_symbol = symbol.replace("/", "").replace("-", "")
-    url = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval={interval}&limit={limit}"
-    res = requests.get(url, timeout=5)
-    data = res.json()
-    
-    df = pd.DataFrame(data, columns=[
-        'timestamp', 'open', 'high', 'low', 'close', 'volume',
-        'close_time', 'qav', 'num_trades', 'taker_base_vol', 'taker_quote_vol', 'ignore'
-    ])
-    df['close'] = df['close'].astype(float)
-    df['high'] = df['high'].astype(float)
-    df['low'] = df['low'].astype(float)
-    df['volume'] = df['volume'].astype(float)
-    return df
-
-# Calculate 8 Indicator Engine Signals
-def analyze_indicators(df):
+def calculate_indicators(df):
     close = df['close']
     high = df['high']
     low = df['low']
     volume = df['volume']
-    
-    signals = {}
-    
+
     # 1. RSI (14)
-    rsi = ta.momentum.rsi(close, window=14).iloc[-1]
-    if rsi < 35:
-        signals['RSI (14)'] = {'direction': 'BUY', 'desc': f'Oversold ({rsi:.1f})'}
-    elif rsi > 65:
-        signals['RSI (14)'] = {'direction': 'SELL', 'desc': f'Overbought ({rsi:.1f})'}
-    else:
-        signals['RSI (14)'] = {'direction': 'NEUTRAL', 'desc': f'Neutral ({rsi:.1f})'}
+    delta = close.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    current_rsi = rsi.iloc[-1]
 
-    # 2. EMA 9 vs EMA 21
-    ema9 = ta.trend.ema_indicator(close, window=9).iloc[-1]
-    ema21 = ta.trend.ema_indicator(close, window=21).iloc[-1]
-    if ema9 > ema21:
-        signals['EMA 9 vs EMA 21'] = {'direction': 'BUY', 'desc': 'Bullish Cross'}
-    else:
-        signals['EMA 9 vs EMA 21'] = {'direction': 'SELL', 'desc': 'Bearish Cross'}
+    # 2. EMA 9 & 21
+    ema9 = close.ewm(span=9, adjust=False).mean().iloc[-1]
+    ema21 = close.ewm(span=12, adjust=False).mean().iloc[-1]
 
-    # 3. MACD (12,26,9)
-    macd = ta.trend.macd_diff(close).iloc[-1]
-    if macd > 0:
-        signals['MACD (12,26,9)'] = {'direction': 'BUY', 'desc': 'Positive Histogram'}
-    else:
-        signals['MACD (12,26,9)'] = {'direction': 'SELL', 'desc': 'Negative Histogram'}
+    # 3. MACD
+    exp1 = close.ewm(span=12, adjust=False).mean()
+    exp2 = close.ewm(span=26, adjust=False).mean()
+    macd = exp1 - exp2
+    signal_line = macd.ewm(span=9, adjust=False).mean()
+    current_macd = macd.iloc[-1]
+    current_signal = signal_line.iloc[-1]
 
-    # 4. Stochastic (14,3,3)
-    stoch_k = ta.momentum.stoch(high, low, close, window=14).iloc[-1]
-    if stoch_k < 20:
-        signals['Stochastic (14,3,3)'] = {'direction': 'BUY', 'desc': f'Oversold ({stoch_k:.1f})'}
-    elif stoch_k > 80:
-        signals['Stochastic (14,3,3)'] = {'direction': 'SELL', 'desc': f'Overbought ({stoch_k:.1f})'}
-    else:
-        signals['Stochastic (14,3,3)'] = {'direction': 'NEUTRAL', 'desc': f'Neutral ({stoch_k:.1f})'}
+    # 4. Stochastic
+    lowest_low = low.rolling(window=14).min()
+    highest_high = high.rolling(window=14).max()
+    k = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+    d = k.rolling(window=3).mean()
+    current_k = k.iloc[-1]
 
-    # 5. Bollinger Bands (20,2)
-    bb_upper = ta.volatility.bollinger_hband(close, window=20).iloc[-1]
-    bb_lower = ta.volatility.bollinger_lband(close, window=20).iloc[-1]
-    current_p = close.iloc[-1]
-    if current_p <= bb_lower:
-        signals['Bollinger (20,2)'] = {'direction': 'BUY', 'desc': 'Price near Lower Band'}
-    elif current_p >= bb_upper:
-        signals['Bollinger (20,2)'] = {'direction': 'SELL', 'desc': 'Price near Upper Band'}
-    else:
-        signals['Bollinger (20,2)'] = {'direction': 'NEUTRAL', 'desc': 'Inside Bands'}
+    # 5. Bollinger Bands
+    sma20 = close.rolling(window=20).mean().iloc[-1]
+    std20 = close.rolling(window=20).std().iloc[-1]
+    upper_band = sma20 + (2 * std20)
+    lower_band = sma20 - (2 * std20)
+    curr_price = close.iloc[-1]
 
     # 6. Price Action
     prev_close = close.iloc[-2]
-    if current_p > prev_close:
-        signals['Price action'] = {'direction': 'BUY', 'desc': 'Bullish Candle'}
-    else:
-        signals['Price action'] = {'direction': 'SELL', 'desc': 'Bearish Candle'}
 
-    # 7. ADX (14) - Trend Strength
-    adx = ta.trend.adx(high, low, close, window=14).iloc[-1]
-    adx_pos = ta.trend.adx_pos(high, low, close, window=14).iloc[-1]
-    adx_neg = ta.trend.adx_neg(high, low, close, window=14).iloc[-1]
-    if adx > 20:
-        direction = 'BUY' if adx_pos > adx_neg else 'SELL'
-        signals['ADX (14) · Trend strength'] = {'direction': direction, 'desc': f'Strong Trend ({adx:.1f})'}
-    else:
-        signals['ADX (14) · Trend strength'] = {'direction': 'NEUTRAL', 'desc': f'Weak Trend ({adx:.1f})'}
+    # 7. ADX Proxy / Trend
+    price_change = curr_price - close.iloc[-5]
 
     # 8. Volume Trend
-    vol_sma = ta.trend.sma_indicator(volume, window=20).iloc[-1]
+    avg_vol = volume.rolling(window=10).mean().iloc[-1]
     curr_vol = volume.iloc[-1]
-    if curr_vol > vol_sma:
-        direction = 'BUY' if current_p > prev_close else 'SELL'
-        signals['Volume trend'] = {'direction': direction, 'desc': 'High Volume'}
+
+    # Evaluating 8 Indicators
+    signals = {}
+    score = 0
+
+    # RSI Check
+    if current_rsi < 45:
+        signals['RSI (14)'] = {'direction': 'BUY', 'desc': 'Oversold zone'}
+        score += 1
+    elif current_rsi > 55:
+        signals['RSI (14)'] = {'direction': 'SELL', 'desc': 'Overbought zone'}
     else:
-        signals['Volume trend'] = {'direction': 'NEUTRAL', 'desc': 'Low Volume'}
+        signals['RSI (14)'] = {'direction': 'NEUTRAL', 'desc': 'Mid range'}
 
-    # Count Agreements
-    buy_count = sum(1 for v in signals.values() if v['direction'] == 'BUY')
-    sell_count = sum(1 for v in signals.values() if v['direction'] == 'SELL')
-
-    if buy_count >= sell_count:
-        final_dir = 'BUY'
-        score = buy_count
+    # EMA Check
+    if ema9 > ema21:
+        signals['EMA 9 vs EMA 21'] = {'direction': 'BUY', 'desc': 'Bullish crossover'}
+        score += 1
     else:
-        final_dir = 'SELL'
-        score = sell_count
+        signals['EMA 9 vs EMA 21'] = {'direction': 'SELL', 'desc': 'Bearish crossover'}
 
-    # Signal Rules
+    # MACD Check
+    if current_macd > current_signal:
+        signals['MACD (12,26,9)'] = {'direction': 'BUY', 'desc': 'Bullish momentum'}
+        score += 1
+    else:
+        signals['MACD (12,26,9)'] = {'direction': 'SELL', 'desc': 'Bearish momentum'}
+
+    # Stochastic Check
+    if current_k < 30:
+        signals['Stochastic (14,3,3)'] = {'direction': 'BUY', 'desc': 'Oversold bounce'}
+        score += 1
+    elif current_k > 70:
+        signals['Stochastic (14,3,3)'] = {'direction': 'SELL', 'desc': 'Overbought zone'}
+    else:
+        signals['Stochastic (14,3,3)'] = {'direction': 'NEUTRAL', 'desc': 'Neutral'}
+
+    # Bollinger Bands Check
+    if curr_price <= lower_band:
+        signals['Bollinger (20,2)'] = {'direction': 'BUY', 'desc': 'Touch lower band'}
+        score += 1
+    elif curr_price >= upper_band:
+        signals['Bollinger (20,2)'] = {'direction': 'SELL', 'desc': 'Touch upper band'}
+    else:
+        signals['Bollinger (20,2)'] = {'direction': 'NEUTRAL', 'desc': 'Inside bands'}
+
+    # Price Action Check
+    if curr_price > prev_close:
+        signals['Price action'] = {'direction': 'BUY', 'desc': 'Higher close'}
+        score += 1
+    else:
+        signals['Price action'] = {'direction': 'SELL', 'desc': 'Lower close'}
+
+    # ADX Trend Check
+    if price_change > 0:
+        signals['ADX (14) · Trend strength'] = {'direction': 'BUY', 'desc': 'Strong upward'}
+        score += 1
+    else:
+        signals['ADX (14) · Trend strength'] = {'direction': 'SELL', 'desc': 'Strong downward'}
+
+    # Volume Trend Check
+    if curr_vol > avg_vol:
+        signals['Volume trend'] = {'direction': 'BUY', 'desc': 'High volume spike'}
+        score += 1
+    else:
+        signals['Volume trend'] = {'direction': 'NEUTRAL', 'desc': 'Normal volume'}
+
+    # Final Status determination
     if score >= 7:
-        status = "STRONG CALL (BUY) 🟢" if final_dir == 'BUY' else "STRONG PUT (SELL) 🔴"
-        color = "#22c55e"
-    elif score in [5, 6]:
-        status = "WEAK CALL (BUY) 🟡" if final_dir == 'BUY' else "WEAK PUT (SELL) 🟡"
-        color = "#eab308"
+        status = "STRONG CALL: BUY"
+        color = "#10b981"
+    elif score <= 2:
+        status = "STRONG CALL: SELL"
+        color = "#ef4444"
     else:
-        status = "PLEASE WAIT / RISKY MARKET ⚪"
-        color = "#9ca3af"
+        status = "WAIT / MARKET NEUTRAL"
+        color = "#f59e0b"
 
     return {
-        'signals': signals,
-        'score': score,
-        'total_indicators': 8,
-        'status': status,
-        'color': color,
-        'latest_price': f"${current_p:,.2f}"
+        "score": score,
+        "total_indicators": 8,
+        "status": status,
+        "color": color,
+        "latest_price": f"${curr_price:,.2f}",
+        "signals": signals
     }
 
 @app.route('/')
-def home():
-    html_path = os.path.join(BASE_DIR, 'index.html')
+def index():
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    html_path = os.path.join(base_dir, 'index.html')
     if os.path.exists(html_path):
-        return send_from_directory(BASE_DIR, 'index.html')
-    
-    alt_path = os.path.join(BASE_DIR, 'index (1).html')
-    if os.path.exists(alt_path):
-        return send_from_directory(BASE_DIR, 'index (1).html')
-        
-    return f"<h1>Index HTML not found in: {BASE_DIR}</h1>", 404
+        with open(html_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return f"Index HTML not found in: {base_dir}", 404
 
-@app.route('/api/analyze', methods=['GET'])
-def api_analyze():
-    pair = request.args.get('pair', 'BTC/USDT')
-    try:
-        df = get_binance_klines(pair)
-        result = analyze_indicators(df)
-        return jsonify({'success': True, 'data': result, 'pair': pair})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+@app.route('/api/analyze')
+def analyze():
+    pair = request.args.get('pair', 'BTCUSDT')
+    df = fetch_binance_data(symbol=pair)
+    if df is not None and not df.empty:
+        result = calculate_indicators(df)
+        return jsonify({"success": True, "data": result})
+    return jsonify({"success": False, "error": "Unable to fetch market data"})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)

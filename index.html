@@ -1,156 +1,342 @@
 <!DOCTYPE html>
 <html lang="bn">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PK Trader Bot Pro</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <style>
-    body { background-color: #0b0e14; color: #e2e8f0; font-family: sans-serif; }
-  </style>
-</head>
-<body class="p-4">
-  <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
-    <!-- Left Column: Chart & Analysis -->
-    <div class="lg:col-span-2 space-y-4">
-      <div class="flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800">
-        <select id="pairSelect" class="bg-slate-800 text-white px-3 py-2 rounded border border-slate-700 outline-none">
-          <optgroup label="Forex Pairs (16)">
-            <option value="EUR/USD">EUR / USD</option>
-            <option value="GBP/USD">GBP / USD</option>
-            <option value="USD/JPY">USD / JPY</option>
-            <option value="AUD/USD">AUD / USD</option>
-            <option value="USD/CAD">USD / CAD</option>
-            <option value="USD/CHF">USD / CHF</option>
-            <option value="NZD/USD">NZD / USD</option>
-            <option value="EUR/GBP">EUR / GBP</option>
-            <option value="EUR/JPY">EUR / JPY</option>
-            <option value="GBP/JPY">GBP / JPY</option>
-            <option value="EUR/AUD">EUR / AUD</option>
-            <option value="GBP/CAD">GBP / CAD</option>
-            <option value="AUD/JPY">AUD / JPY</option>
-            <option value="AUD/CAD">AUD / CAD</option>
-            <option value="EUR/CAD">EUR / CAD</option>
-            <option value="CAD/JPY">CAD / JPY</option>
-          </optgroup>
-          <optgroup label="Crypto Pairs (9)">
-            <option value="BTC/USDT" selected>BTC / USDT</option>
-            <option value="ETH/USDT">ETH / USDT</option>
-            <option value="BNB/USDT">BNB / USDT</option>
-            <option value="SOL/USDT">SOL / USDT</option>
-            <option value="XRP/USDT">XRP / USDT</option>
-            <option value="ADA/USDT">ADA / USDT</option>
-            <option value="DOGE/USDT">DOGE / USDT</option>
-            <option value="AVAX/USDT">AVAX / USDT</option>
-            <option value="DOT/USDT">DOT / USDT</option>
-          </optgroup>
-        </select>
-
-        <button onclick="runAnalysis()" class="bg-cyan-500 hover:bg-cyan-600 text-black font-bold px-6 py-2 rounded">
-          ANALYZE NOW
-        </button>
-      </div>
-
-      <!-- TradingView Chart -->
-      <div class="bg-slate-900 rounded-lg p-2 border border-slate-800 h-[380px]" id="tv_chart_container"></div>
-
-      <!-- Signal Status -->
-      <div class="bg-slate-900 p-4 rounded-lg border border-slate-800 space-y-3">
-        <div class="flex justify-between items-center">
-          <div>
-            <div class="text-xs text-slate-400">CURRENT ANALYSIS</div>
-            <div id="statusText" class="text-xl font-bold mt-1 text-white">READY TO ANALYZE</div>
-          </div>
-          <div class="text-right">
-            <span id="scoreBadge" class="bg-slate-800 px-3 py-1 rounded text-sm font-semibold border border-slate-700">SCORE --/8</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4 text-sm pt-2 border-t border-slate-800">
-          <div>
-            <span class="text-slate-400 block">Confluence Score</span>
-            <span id="scoreDetail" class="font-bold text-lg">N/A</span>
-          </div>
-          <div>
-            <span class="text-slate-400 block">Latest Price</span>
-            <span id="latestPrice" class="font-bold text-lg">N/A</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right Column: Indicator Engine -->
-    <div class="bg-slate-900 p-4 rounded-lg border border-slate-800 space-y-4">
-      <h3 class="text-lg font-bold border-b border-slate-800 pb-2 text-slate-300">INDICATOR ENGINE</h3>
-      <div id="indicatorsGrid" class="grid grid-cols-1 gap-3">
-        <div class="bg-slate-800/50 p-3 rounded border border-slate-700/50 text-slate-400 text-center">
-          Click "ANALYZE NOW" to calculate indicators
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <script>
-    let widget;
-    function loadChart(symbol) {
-      const formattedSymbol = symbol.replace('/', '');
-      widget = new TradingView.widget({
-        "width": "100%",
-        "height": "100%",
-        "symbol": "BINANCE:" + formattedSymbol,
-        "interval": "1",
-        "timezone": "Etc/UTC",
-        "theme": "dark",
-        "style": "1",
-        "locale": "en",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "hide_side_toolbar": true,
-        "container_id": "tv_chart_container"
-      });
-    }
-
-    async function runAnalysis() {
-      const pair = document.getElementById('pairSelect').value;
-      loadChart(pair);
-
-      try {
-        const res = await fetch(`/api/analyze?pair=${encodeURIComponent(pair)}`);
-        const json = await res.json();
-        
-        if(json.success) {
-          const d = json.data;
-          document.getElementById('statusText').innerText = d.status;
-          document.getElementById('statusText').style.color = d.color;
-          document.getElementById('scoreBadge').innerText = `SCORE ${d.score}/8`;
-          document.getElementById('scoreDetail').innerText = `${d.score} of 8 Indicators agreed`;
-          document.getElementById('latestPrice').innerText = d.latestPrice;
-
-          const grid = document.getElementById('indicatorsGrid');
-          grid.innerHTML = '';
-          
-          for (const [name, info] of Object.entries(d.signals)) {
-            let badgeColor = info.direction === 'BUY' ? 'text-green-400' : info.direction === 'SELL' ? 'text-red-400' : 'text-gray-400';
-            grid.innerHTML += `
-              <div class="bg-slate-800 p-3 rounded border border-slate-700 flex justify-between items-center">
-                <div>
-                  <div class="text-xs text-slate-400">${name}</div>
-                  <div class="text-xs font-medium text-slate-300 mt-0.5">${info.desc}</div>
-                </div>
-                <div class="font-bold text-sm ${badgeColor}">${info.direction}</div>
-              </div>
-            `;
-          }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PK Trader Bot Pro</title>
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-      } catch (err) {
-        console.error(err);
-      }
-    }
+        body {
+            background-color: #070b12;
+            color: #e1e7ef;
+            padding: 12px;
+            font-size: 13px;
+        }
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00d2ff, #0040ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 0 12px rgba(0, 162, 255, 0.5);
+        }
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        .brand-title span { color: #00a6ff; }
+        .sub-title { font-size: 10px; color: #6b7280; }
+        .status-badge {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot {
+            width: 6px;
+            height: 6px;
+            background-color: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #10b981;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .control-item select {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            color: #94a3b8;
+            padding: 6px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            outline: none;
+        }
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        @media (min-width: 768px) {
+            .workspace { grid-template-columns: 2fr 1fr; }
+        }
+        .card {
+            background: #0d1527;
+            border: 1px solid #1e2d4a;
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .chart-container {
+            height: 320px;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .signal-box {
+            background: radial-gradient(circle at top right, #09203f, #0d1527);
+            border: 1px solid #1e3a5f;
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        .signal-title {
+            font-size: 12px;
+            color: #38bdf8;
+            margin-bottom: 4px;
+        }
+        .signal-badge {
+            font-size: 24px;
+            font-weight: 800;
+            margin: 6px 0;
+            letter-spacing: 1px;
+        }
+        .signal-buy { color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+        .signal-sell { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+        .signal-wait { color: #f59e0b; text-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
 
-    loadChart('BTC/USDT');
-  </script>
+        .confidence-bar {
+            height: 6px;
+            background: #1e293b;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        .confidence-fill {
+            height: 100%;
+            width: 0%;
+            background: #10b981;
+            transition: width 0.5s ease;
+        }
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid #1e293b;
+        }
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .ind-card {
+            background: #0b1322;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+        }
+        .ind-title { font-size: 10px; color: #64748b; margin-bottom: 4px; }
+        .ind-status { font-size: 11px; font-weight: 600; }
+        .action-card {
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(2, 132, 199, 0.3);
+            margin-top: 12px;
+        }
+        .action-btn-text { font-size: 16px; font-weight: 700; color: #ffffff; }
+        .recent-box {
+            background: #0d1527;
+            border: 1px solid #1e2d4a;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        .recent-title { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+        .recent-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #1e293b;
+            font-size: 11px;
+        }
+        .recent-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <div class="top-header">
+        <div class="brand-section">
+            <div class="logo-box">PK</div>
+            <div>
+                <div class="brand-title">PK Trader <span>Bot Pro</span></div>
+                <div class="sub-title">AI POWERED TRADING ANALYSIS & SIGNALS</div>
+            </div>
+        </div>
+        <div class="status-badge"><div class="dot"></div> Online</div>
+    </div>
+
+    <div class="controls-grid">
+        <div class="control-item">
+            <select id="pairSelect" onchange="updateChart()">
+                <!-- Crypto Pairs -->
+                <option value="BTCUSDT" selected>BTC / USDT</option>
+                <option value="ETHUSDT">ETH / USDT</option>
+                <option value="BNBUSDT">BNB / USDT</option>
+                <option value="SOLUSDT">SOL / USDT</option>
+                <option value="XRPUSDT">XRP / USDT</option>
+                <option value="ADAUSDT">ADA / USDT</option>
+                <option value="DOGEUSDT">DOGE / USDT</option>
+                <option value="MATICUSDT">MATIC / USDT</option>
+                <option value="LTCUSDT">LTC / USDT</option>
+            </select>
+        </div>
+        <div class="control-item">
+            <select id="tfSelect">
+                <option value="1m">1m</option>
+                <option value="5m" selected>5m</option>
+                <option value="15m">15m</option>
+                <option value="1h">1h</option>
+            </select>
+        </div>
+        <div class="control-item"><select><option>Candlestick</option></select></div>
+        <div class="control-item"><select><option>Heikin Ashi</option></select></div>
+    </div>
+
+    <div class="workspace">
+        <div>
+            <div class="card">
+                <div id="tradingview_chart" class="chart-container"></div>
+            </div>
+
+            <div class="indicators-grid" id="indicatorsGrid">
+                <div class="ind-card"><div class="ind-title">RSI</div><div class="ind-status" id="ind-rsi">--</div></div>
+                <div class="ind-card"><div class="ind-title">EMA 9/21</div><div class="ind-status" id="ind-ema">--</div></div>
+                <div class="ind-card"><div class="ind-title">MACD</div><div class="ind-status" id="ind-macd">--</div></div>
+                <div class="ind-card"><div class="ind-title">Stochastic</div><div class="ind-status" id="ind-stoch">--</div></div>
+                <div class="ind-card"><div class="ind-title">Bollinger</div><div class="ind-status" id="ind-bb">--</div></div>
+                <div class="ind-card"><div class="ind-title">Price Action</div><div class="ind-status" id="ind-pa">--</div></div>
+                <div class="ind-card"><div class="ind-title">ADX Trend</div><div class="ind-status" id="ind-adx">--</div></div>
+                <div class="ind-card"><div class="ind-title">Volume</div><div class="ind-status" id="ind-vol">--</div></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="signal-box">
+                <div class="signal-title">🤖 AI Signal Engine</div>
+                <div class="signal-badge signal-wait" id="signalStatus">READY</div>
+                <div class="confidence-bar"><div class="confidence-fill" id="confidenceBar"></div></div>
+                <div class="meta-row"><span>Agreement Score:</span><strong id="scoreText">0 / 8</strong></div>
+                <div class="meta-row"><span>Latest Price:</span><strong id="latestPrice">$0.00</strong></div>
+            </div>
+
+            <div class="action-card" onclick="runAnalysis()">
+                <div>
+                    <div class="action-btn-text">ANALYSIS</div>
+                    <div style="font-size: 10px; color: #e0f2fe;">Run 8-indicator engine</div>
+                </div>
+                <div style="font-size: 20px;">➔</div>
+            </div>
+
+            <div class="recent-box">
+                <div class="recent-title">⚡ Recent Market Signals</div>
+                <div class="recent-item"><span>BTC/USDT</span><span style="color:#10b981;">BUY (+2.4%)</span></div>
+                <div class="recent-item"><span>ETH/USDT</span><span style="color:#10b981;">BUY (+1.8%)</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let widget;
+        function loadChart(symbol = "BTCUSDT") {
+            document.getElementById('tradingview_chart').innerHTML = '';
+            widget = new TradingView.widget({
+                "autosize": true,
+                "symbol": "BINANCE:" + symbol,
+                "interval": "5",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#0d1527",
+                "enable_publishing": false,
+                "hide_side_toolbar": true,
+                "container_id": "tradingview_chart"
+            });
+        }
+        function updateChart() {
+            const pair = document.getElementById('pairSelect').value;
+            loadChart(pair);
+        }
+        async function runAnalysis() {
+            const pair = document.getElementById('pairSelect').value;
+            const statusBadge = document.getElementById('signalStatus');
+            const scoreText = document.getElementById('scoreText');
+            const latestPrice = document.getElementById('latestPrice');
+            const confBar = document.getElementById('confidenceBar');
+
+            statusBadge.innerText = "CALCULATING...";
+            statusBadge.className = "signal-badge signal-wait";
+
+            try {
+                const res = await fetch(`/api/analyze?pair=${pair}`);
+                const data = await res.json();
+                if (data.success) {
+                    const result = data.data;
+                    statusBadge.innerText = result.score >= 7 ? (result.status.includes('BUY') ? 'BUY' : 'SELL') : 'WAIT';
+                    statusBadge.className = result.score >= 7 ? (result.status.includes('BUY') ? 'signal-badge signal-buy' : 'signal-badge signal-sell') : 'signal-badge signal-wait';
+                    scoreText.innerText = `${result.score} / ${result.total_indicators}`;
+                    latestPrice.innerText = result.latest_price;
+                    confBar.style.width = (result.score / 8) * 100 + '%';
+                    confBar.style.backgroundColor = result.color;
+
+                    const sigs = result.signals;
+                    if(sigs['RSI (14)']) document.getElementById('ind-rsi').innerText = sigs['RSI (14)'].direction;
+                    if(sigs['EMA 9 vs EMA 21']) document.getElementById('ind-ema').innerText = sigs['EMA 9 vs EMA 21'].direction;
+                    if(sigs['MACD (12,26,9)']) document.getElementById('ind-macd').innerText = sigs['MACD (12,26,9)'].direction;
+                    if(sigs['Stochastic (14,3,3)']) document.getElementById('ind-stoch').innerText = sigs['Stochastic (14,3,3)'].direction;
+                    if(sigs['Bollinger (20,2)']) document.getElementById('ind-bb').innerText = sigs['Bollinger (20,2)'].direction;
+                    if(sigs['Price action']) document.getElementById('ind-pa').innerText = sigs['Price action'].direction;
+                    if(sigs['ADX (14) · Trend strength']) document.getElementById('ind-adx').innerText = sigs['ADX (14) · Trend strength'].direction;
+                    if(sigs['Volume trend']) document.getElementById('ind-vol').innerText = sigs['Volume trend'].direction;
+                } else {
+                    statusBadge.innerText = "ERROR";
+                }
+            } catch (err) {
+                statusBadge.innerText = "FAILED";
+            }
+        }
+        window.onload = function() { loadChart("BTCUSDT"); };
+    </script>
 </body>
 </html>
