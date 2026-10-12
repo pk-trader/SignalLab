@@ -37,7 +37,7 @@
 
     <div class="top-header">
         <div class="brand-title">PK Trader <span>Bot Pro</span></div>
-        <div style="color: #10b981; font-size: 12px;">● Online (Real-Time)</div>
+        <div style="color: #10b981; font-size: 12px;">● Online (15m+ Pro Mode)</div>
     </div>
 
     <div class="controls-grid">
@@ -60,9 +60,8 @@
             <option value="NZDJPY">NZD / JPY</option>
         </select>
         <select id="tfSelect" onchange="updateChart()">
-            <option value="1m">1m</option>
-            <option value="2m">2m</option>
-            <option value="5m" selected>5m</option>
+            <option value="15m" selected>15m</option>
+            <option value="30m">30m</option>
             <option value="1h">1h</option>
             <option value="2h">2h</option>
             <option value="4h">4h</option>
@@ -92,7 +91,7 @@
 
         <div>
             <div class="signal-box">
-                <div style="font-size: 12px; color: #38bdf8;">🤖 AI Signal Engine</div>
+                <div style="font-size: 12px; color: #38bdf8;">🤖 AI Pro Signal Engine (15m+)</div>
                 <div class="signal-badge signal-wait" id="signalStatus">READY</div>
                 <div class="meta-row"><span>Agreement Score:</span><strong id="scoreText">0 / 8</strong></div>
                 <div class="meta-row"><span>Next Candle Time:</span><strong id="candleTime" style="color:#38bdf8;">--</strong></div>
@@ -109,11 +108,11 @@
 
     <script>
         function getTvInterval(tf) {
-            const map = { '1m': '1', '2m': '3', '5m': '5', '1h': '60', '2h': '120', '4h': '240', '24h': 'D' };
-            return map[tf] || '5';
+            const map = { '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '24h': 'D' };
+            return map[tf] || '15';
         }
 
-        function loadChart(symbol = "EURUSD", tf = "5m") {
+        function loadChart(symbol = "EURUSD", tf = "15m") {
             document.getElementById('tradingview_chart').innerHTML = '';
             const tvSymbol = "FX:" + symbol;
             new TradingView.widget({
@@ -147,7 +146,6 @@
             else el.className = 'ind-status neutral';
         }
 
-        // Live Real-Time Clock updater
         setInterval(() => {
             const now = new Date();
             document.getElementById('realTime').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -170,10 +168,12 @@
                     const result = data.data;
                     statusBadge.innerText = result.status;
                     
-                    // Calculate exact next candle entry time based on timeframe
                     const now = new Date();
-                    let tfMinutes = parseInt(tf) || 5;
-                    if(tf.includes('h')) tfMinutes = parseInt(tf) * 60;
+                    let tfMinutes = 15;
+                    if(tf === '30m') tfMinutes = 30;
+                    if(tf === '1h') tfMinutes = 60;
+                    if(tf === '2h') tfMinutes = 120;
+                    if(tf === '4h') tfMinutes = 240;
                     if(tf === '24h') tfMinutes = 1440;
                     
                     now.setMinutes(now.getMinutes() + tfMinutes);
@@ -212,7 +212,7 @@
             }
         }
 
-        window.onload = function() { loadChart("EURUSD", "5m"); };
+        window.onload = function() { loadChart("EURUSD", "15m"); };
     </script>
 </body>
 </html>
