@@ -42,7 +42,6 @@
 
     <div class="controls-grid">
         <select id="pairSelect" onchange="updateChart()">
-            <!-- 16 Forex Pairs -->
             <option value="EURUSD" selected>EUR / USD</option>
             <option value="GBPUSD">GBP / USD</option>
             <option value="USDJPY">USD / JPY</option>
@@ -96,8 +95,8 @@
                 <div style="font-size: 12px; color: #38bdf8;">🤖 AI Signal Engine</div>
                 <div class="signal-badge signal-wait" id="signalStatus">READY</div>
                 <div class="meta-row"><span>Agreement Score:</span><strong id="scoreText">0 / 8</strong></div>
-                <div class="meta-row"><span>Latest Price:</span><strong id="latestPrice">$0.00</strong></div>
-                <div class="meta-row"><span>Trade Time:</span><strong id="tradeTime">--</strong></div>
+                <div class="meta-row"><span>Next Candle Time:</span><strong id="candleTime" style="color:#38bdf8;">--</strong></div>
+                <div class="meta-row"><span>Real Time:</span><strong id="realTime">--</strong></div>
                 <div class="meta-row"><span>Next Candle Action:</span><strong id="nextAction" style="color:#38bdf8;">--</strong></div>
                 <div class="meta-row"><span>Success Rate:</span><strong id="successRate" style="color:#10b981;">--</strong></div>
             </div>
@@ -116,10 +115,7 @@
 
         function loadChart(symbol = "EURUSD", tf = "5m") {
             document.getElementById('tradingview_chart').innerHTML = '';
-            
-            // FX symbol prefix fix
             const tvSymbol = "FX:" + symbol;
-
             new TradingView.widget({
                 "autosize": true,
                 "symbol": tvSymbol,
@@ -151,6 +147,12 @@
             else el.className = 'ind-status neutral';
         }
 
+        // Live Real-Time Clock updater
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('realTime').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }, 1000);
+
         async function runAnalysis() {
             const rawPair = document.getElementById('pairSelect').value;
             const tf = document.getElementById('tfSelect').value;
@@ -160,9 +162,6 @@
             statusBadge.innerText = "CALCULATING...";
             statusBadge.className = "signal-badge signal-wait";
 
-            const now = new Date();
-            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
             try {
                 const res = await fetch(`/api/analyze?pair=${pair}&tf=${tf}`);
                 const data = await res.json();
@@ -171,6 +170,15 @@
                     const result = data.data;
                     statusBadge.innerText = result.status;
                     
+                    // Calculate exact next candle entry time based on timeframe
+                    const now = new Date();
+                    let tfMinutes = parseInt(tf) || 5;
+                    if(tf.includes('h')) tfMinutes = parseInt(tf) * 60;
+                    if(tf === '24h') tfMinutes = 1440;
+                    
+                    now.setMinutes(now.getMinutes() + tfMinutes);
+                    const candleTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
                     if (result.status.includes('CALL')) {
                         statusBadge.className = "signal-badge signal-up";
                         document.getElementById('nextAction').innerText = "Take CALL (UP) Trade";
@@ -179,12 +187,11 @@
                         document.getElementById('nextAction').innerText = "Take PUT (DOWN) Trade";
                     } else {
                         statusBadge.className = "signal-badge signal-wait";
-                        document.getElementById('nextAction').innerText = "WAIT (No Clear Trend)";
+                        document.getElementById('nextAction').innerText = "WAIT (No Trade)";
                     }
 
                     document.getElementById('scoreText').innerText = `${result.score} / ${result.total_indicators}`;
-                    document.getElementById('latestPrice').innerText = result.latest_price;
-                    document.getElementById('tradeTime').innerText = timeString;
+                    document.getElementById('candleTime').innerText = candleTimeStr;
                     document.getElementById('successRate').innerText = result.success_rate;
 
                     const sigs = result.signals;
