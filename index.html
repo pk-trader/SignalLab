@@ -16,19 +16,19 @@
         .workspace { display: grid; grid-template-columns: 1fr; gap: 12px; }
         @media (min-width: 768px) { .workspace { grid-template-columns: 2fr 1fr; } }
         .card { background: #0d1527; border: 1px solid #1e2d4a; border-radius: 10px; padding: 10px; }
-        .chart-container { height: 300px; width: 100%; border-radius: 8px; overflow: hidden; }
+        .chart-container { height: 310px; width: 100%; border-radius: 8px; overflow: hidden; }
         .signal-box { background: #0d1527; border: 1px solid #1e3a5f; border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 12px; }
         .signal-badge { font-size: 28px; font-weight: 800; margin: 8px 0; letter-spacing: 1px; }
-        .signal-buy { color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
-        .signal-sell { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
-        .signal-wait { color: #f59e0b; text-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
+        .signal-up { color: #10b981; text-shadow: 0 0 12px rgba(16, 185, 129, 0.5); }
+        .signal-down { color: #ef4444; text-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
+        .signal-wait { color: #f59e0b; text-shadow: 0 0 12px rgba(245, 158, 11, 0.5); }
         .meta-row { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-top: 6px; padding-top: 6px; border-top: 1px solid #1e293b; }
         .indicators-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
         .ind-card { background: #0b1322; border: 1px solid #1e293b; border-radius: 6px; padding: 8px; text-align: center; }
         .ind-title { font-size: 10px; color: #64748b; }
         .ind-status { font-size: 11px; font-weight: 700; margin-top: 3px; }
-        .buy { color: #10b981; }
-        .sell { color: #ef4444; }
+        .up { color: #10b981; }
+        .down { color: #ef4444; }
         .neutral { color: #f59e0b; }
         .action-card { background: linear-gradient(135deg, #0284c7, #0369a1); border-radius: 10px; padding: 12px; color: #fff; font-weight: bold; text-align: center; cursor: pointer; margin-top: 10px; font-size: 15px; }
     </style>
@@ -42,36 +42,33 @@
 
     <div class="controls-grid">
         <select id="pairSelect" onchange="updateChart()">
-    <!-- Forex Pairs (16) -->
-    <option value="EURUSD"selected>EUR / USD</option>
-    <option value="GBPUSD">GBP / USD</option>
-    <option value="USDJPY">USD / JPY</option>
-    <option value="AUDUSD">AUD / USD</option>
-    <option value="USDCAD">USD / CAD</option>
-    <option value="USDCHF">USD / CHF</option>
-    <option value="NZDUSD">NZD / USD</option>
-    <option value="EURGBP">EUR / GBP</option>
-    <option value="EURJPY">EUR / JPY</option>
-    <option value="GBPJPY">GBP / JPY</option>
-    <option value="EURAUD">EUR / AUD</option>
-    <option value="GBPCAD">GBP / CAD</option>
-    <option value="AUDJPY">AUD / JPY</option>
-    <option value="CADJPY">CAD / JPY</option>
-    <option value="CHFJPY">CHF / JPY</option>
-    <option value="NZDJPY">NZD / JPY</option>
-
-    <!-- Crypto Pairs (9) -->
-    <option value="BTCUSDT">BTC / USDT</option>
-    <option value="ETHUSDT">ETH / USDT</option>
-    <option value="BNBUSDT">BNB / USDT</option>
-    <option value="SOLUSDT">SOL / USDT</option>
-    <option value="XRPUSDT">XRP / USDT</option>
-    <option value="ADAUSDT">ADA / USDT</option>
-    <option value="DOGEUSDT">DOGE / USDT</option>
-    <option value="MATICUSDT">MATIC / USDT</option>
-    <option value="LTCUSDT">LTC / USDT</option>
-</select>
-        <select id="tfSelect"><option value="5m">5m</option></select>
+            <!-- 16 Forex Pairs -->
+            <option value="EURUSD" selected>EUR / USD</option>
+            <option value="GBPUSD">GBP / USD</option>
+            <option value="USDJPY">USD / JPY</option>
+            <option value="AUDUSD">AUD / USD</option>
+            <option value="USDCAD">USD / CAD</option>
+            <option value="USDCHF">USD / CHF</option>
+            <option value="NZDUSD">NZD / USD</option>
+            <option value="EURGBP">EUR / GBP</option>
+            <option value="EURJPY">EUR / JPY</option>
+            <option value="GBPJPY">GBP / JPY</option>
+            <option value="EURAUD">EUR / AUD</option>
+            <option value="GBPCAD">GBP / CAD</option>
+            <option value="AUDJPY">AUD / JPY</option>
+            <option value="CADJPY">CAD / JPY</option>
+            <option value="CHFJPY">CHF / JPY</option>
+            <option value="NZDJPY">NZD / JPY</option>
+        </select>
+        <select id="tfSelect" onchange="updateChart()">
+            <option value="1m">1m</option>
+            <option value="2m">2m</option>
+            <option value="5m" selected>5m</option>
+            <option value="1h">1h</option>
+            <option value="2h">2h</option>
+            <option value="4h">4h</option>
+            <option value="24h">24h</option>
+        </select>
         <select><option>Candlestick</option></select>
         <select><option>Heikin Ashi</option></select>
     </div>
@@ -100,8 +97,9 @@
                 <div class="signal-badge signal-wait" id="signalStatus">READY</div>
                 <div class="meta-row"><span>Agreement Score:</span><strong id="scoreText">0 / 8</strong></div>
                 <div class="meta-row"><span>Latest Price:</span><strong id="latestPrice">$0.00</strong></div>
-                <div class="meta-row"><span>Signal Time:</span><strong id="tradeTime">--</strong></div>
-                <div class="meta-row"><span>Expiry Recommendation:</span><strong style="color:#38bdf8;">1 - 3 mins</strong></div>
+                <div class="meta-row"><span>Trade Time:</span><strong id="tradeTime">--</strong></div>
+                <div class="meta-row"><span>Next Candle Action:</span><strong id="nextAction" style="color:#38bdf8;">--</strong></div>
+                <div class="meta-row"><span>Success Rate:</span><strong id="successRate" style="color:#10b981;">--</strong></div>
             </div>
 
             <div class="action-card" onclick="runAnalysis()">
@@ -111,54 +109,83 @@
     </div>
 
     <script>
-        function loadChart(symbol = "SOLUSDT") {
+        function getTvInterval(tf) {
+            const map = { '1m': '1', '2m': '3', '5m': '5', '1h': '60', '2h': '120', '4h': '240', '24h': 'D' };
+            return map[tf] || '5';
+        }
+
+        function loadChart(symbol = "EURUSD", tf = "5m") {
             document.getElementById('tradingview_chart').innerHTML = '';
+            
+            // FX symbol prefix fix
+            const tvSymbol = "FX:" + symbol;
+
             new TradingView.widget({
                 "autosize": true,
-                "symbol": "BINANCE:" + symbol,
-                "interval": "5",
+                "symbol": tvSymbol,
+                "interval": getTvInterval(tf),
+                "timezone": "Etc/UTC",
                 "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#0d1527",
+                "enable_publishing": false,
+                "hide_side_toolbar": true,
                 "container_id": "tradingview_chart"
             });
         }
 
         function updateChart() {
             const rawPair = document.getElementById('pairSelect').value;
+            const tf = document.getElementById('tfSelect').value;
             const clean = rawPair.replace(/[^a-zA-Z0-9]/g, '');
-            loadChart(clean);
+            loadChart(clean, tf);
         }
 
         function setIndStatus(id, dir) {
             const el = document.getElementById(id);
             if (!el) return;
             el.innerText = dir;
-            if (dir === 'BUY') el.className = 'ind-status buy';
-            else if (dir === 'SELL') el.className = 'ind-status sell';
+            if (dir === 'UP') el.className = 'ind-status up';
+            else if (dir === 'DOWN') el.className = 'ind-status down';
             else el.className = 'ind-status neutral';
         }
 
         async function runAnalysis() {
             const rawPair = document.getElementById('pairSelect').value;
+            const tf = document.getElementById('tfSelect').value;
             const pair = rawPair.replace(/[^a-zA-Z0-9]/g, '');
             const statusBadge = document.getElementById('signalStatus');
             
             statusBadge.innerText = "CALCULATING...";
             statusBadge.className = "signal-badge signal-wait";
 
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
             try {
-                const res = await fetch(`/api/analyze?pair=${pair}`);
+                const res = await fetch(`/api/analyze?pair=${pair}&tf=${tf}`);
                 const data = await res.json();
                 
                 if (data.success) {
                     const result = data.data;
                     statusBadge.innerText = result.status;
-                    if (result.status === 'BUY') statusBadge.className = "signal-badge signal-buy";
-                    else if (result.status === 'SELL') statusBadge.className = "signal-badge signal-sell";
-                    else statusBadge.className = "signal-badge signal-wait";
+                    
+                    if (result.status.includes('CALL')) {
+                        statusBadge.className = "signal-badge signal-up";
+                        document.getElementById('nextAction').innerText = "Take CALL (UP) Trade";
+                    } else if (result.status.includes('PUT')) {
+                        statusBadge.className = "signal-badge signal-down";
+                        document.getElementById('nextAction').innerText = "Take PUT (DOWN) Trade";
+                    } else {
+                        statusBadge.className = "signal-badge signal-wait";
+                        document.getElementById('nextAction').innerText = "WAIT (No Clear Trend)";
+                    }
 
                     document.getElementById('scoreText').innerText = `${result.score} / ${result.total_indicators}`;
                     document.getElementById('latestPrice').innerText = result.latest_price;
-                    document.getElementById('tradeTime').innerText = result.trade_time;
+                    document.getElementById('tradeTime').innerText = timeString;
+                    document.getElementById('successRate').innerText = result.success_rate;
 
                     const sigs = result.signals;
                     setIndStatus('ind-rsi', sigs.rsi);
@@ -171,14 +198,14 @@
                     setIndStatus('ind-vol', sigs.vol);
 
                 } else {
-                    statusBadge.innerText = "NO DATA";
+                    statusBadge.innerText = "WAIT";
                 }
             } catch (err) {
-                statusBadge.innerText = "FAILED";
+                statusBadge.innerText = "WAIT";
             }
         }
 
-        window.onload = function() { loadChart("SOLUSDT"); };
+        window.onload = function() { loadChart("EURUSD", "5m"); };
     </script>
 </body>
 </html>
